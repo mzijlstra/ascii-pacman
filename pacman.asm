@@ -1,30 +1,38 @@
-MPUTMC MACRO x, y, c, a 
+%macro MPUTMC 4
     PUSH AX
     PUSH BX
     PUSH CX
-    MOV BL, x
-    MOV AL, y 
-    MOV CL, c
-    MOV CH, a
+    MOV BL, %1
+    MOV AL, %2 
+    MOV CL, %3
+    MOV CH, %4
     CALL PUTMC
     POP CX
     POP BX
     POP AX
-ENDM
+%endmacro
        
-width       EQU 39
-height      EQU 24
-level_color EQU 0000_1001b   
-tl_corner   EQU 201
-tr_corner   EQU 187
-bl_corner   EQU 200
-br_corner   EQU 188
-h_piece     EQU 205    
-v_piece     EQU 186
+section .data
+width       db 39
+height      db 24
+level_color db 09h ;0000_1001b   
+tl_corner   db 201
+tr_corner   db 187
+bl_corner   db 200
+br_corner   db 188
+h_piece     db 205    
+v_piece     db 186
+
+guy   db 2    ; ascii code for character  
+x     db 20   ; x position of character
+y     db 11   ; y position of character 
+
+xd    db 0    ; x delta
+yd    db 1    ; y delta
 
              
+section .text
 org 100h
-
 
 MOV AH, 0       ; sub function for video mode
 MOV AL, 00h     ; 40x25 text mode
@@ -39,37 +47,37 @@ MOV CH, 0001_0000b ; set cursor invisible
 INT 10h         ; set cursor mode now 
 
 ; draw basic level
-MPUTMC 0, 0, tl_corner, level_color  
-MPUTMC width, 0, tr_corner, level_color
-MPUTMC 0, height bl_corner, level_color
-MPUTMC width, height, br_corner, level_color
+MPUTMC 0, 0, [tl_corner], [level_color]  
+MPUTMC [width], 0, [tr_corner], [level_color]
+MPUTMC 0, [height], [bl_corner], [level_color],
+MPUTMC [width], [height], [br_corner], [level_color]
   
 MOV CL, 1
 draw_top:
-    MPUTMC CL, 0, h_piece, level_color
+    MPUTMC CL, 0, [h_piece], [level_color]
     INC CL
-    CMP CL, width
+    CMP CL, [width]
 JB draw_top
 
 MOV CL, 1
 draw_bot:
-    MPUTMC CL, height, h_piece, level_color
+    MPUTMC CL, [height], [h_piece], [level_color]
     INC CL
-    CMP CL, width
+    CMP CL, [width]
 JB draw_bot
 
 MOV CL, 1
 draw_left:
-    MPUTMC 0, CL, v_piece, level_color
+    MPUTMC 0, CL, [v_piece], [level_color]
     INC CL
-    CMP CL, height
+    CMP CL, [height]
 JB draw_left
 
 MOV CL, 1
 draw_right:
-    MPUTMC width, CL, v_piece, level_color
+    MPUTMC [width], CL, [v_piece], [level_color]
     INC CL
-    CMP CL, height
+    CMP CL, [height]
 JB draw_right
 
 
@@ -88,26 +96,26 @@ main_loop:
         JMP process_keys
     
     check_change:
-        CMP xd, 0
+        CMP byte [xd], 0
         JNE draw
-        CMP yd, 0
+        CMP byte [yd], 0
         JNE draw
         JMP sleep
     
     draw:      
     
-        MOV BL, x       ; load current x
-        ADD BL, xd      ; add x delta        
-        MOV AL, y       ; load current y
-        ADD AL, yd      ; add y delta
+        MOV BL, [x]       ; load current x
+        ADD BL, [xd]      ; add x delta        
+        MOV AL, [y]       ; load current y
+        ADD AL, [yd]      ; add y delta
 
-        MPUTMC BL, AL, guy, 0000_1110b ; draw character 
-        MPUTMC x, y, 0, 0 ; erase old character 
+        MPUTMC BL, AL, [guy], 0000_1110b ; draw character 
+        MPUTMC [x], [y], 0, 0 ; erase old character 
         
-        MOV x, BL       ; set x to new x
-        MOV y, AL       ; set y to new y
-        MOV xd, 0       ; clear x delta
-        MOV yd, 0       ; clear y delta
+        MOV [x], BL       ; set x to new x
+        MOV [y], AL       ; set y to new y
+        MOV byte [xd], 0       ; clear x delta
+        MOV byte [yd], 0       ; clear y delta
     
     sleep:
         MOV AH, 86h   ; sub function for BIOS wait (in micro seconds)
@@ -126,8 +134,7 @@ MOV AL, 03h     ; 80x25 text mode
 INT 10h         ; set video mode now     
 RET
 
-GET_KEY PROC
-check:     
+GET_KEY:
     MOV AL, 0   ; clear AL
     MOV AH, 1   ; check for key sub function
     INT 16h     ; do it now
@@ -138,10 +145,9 @@ check:
     
 done_getkey:
     RET    
-ENDP   
 
 
-PROCESS_KEY PROC
+PROCESS_KEY:
     CMP AL, 'q'     ; check q key
     JE exit_fail    ; quit
 
@@ -160,27 +166,29 @@ PROCESS_KEY PROC
     JMP exit_success
 
 up_arrow:  
-    CMP y, 0
+    CMP byte [y], 0
     JE exit_success
-    MOV yd, -1
+    MOV byte [yd], -1
     JMP exit_success
     
 left_arrow:        
-    CMP x, 0
+    CMP byte [x], 0
     JE exit_success
-    MOV xd, -1
+    MOV byte [xd], -1
     JMP exit_success
 
 right_arrow:   
-    CMP x, width
+    MOV AL, [x]
+    CMP AL, [width]
     JE exit_success
-    MOV xd, 1
+    MOV byte [xd], 1
     JMP exit_success
     
-down_arrow:        
-    CMP y, height
+down_arrow:
+    MOV AL, [y]
+    CMP AL, [height]
     JE exit_success
-    MOV yd, 1
+    MOV byte [yd], 1
     JMP exit_success
          
          
@@ -191,11 +199,10 @@ exit_fail:
 exit_success:
     MOV AX, 0
     RET
-ENDP      
 
 ; Procedure to put characters directly into mode 03h video memory
 ; expects x in BL, y in AL, character in CL, and attributes in CH
-PUTMC PROC
+PUTMC:
     PUSH DS 
     
     MOV AH, 80; two bytes for every char
@@ -211,11 +218,5 @@ PUTMC PROC
     
     POP DS 
     RET
-ENDP
 
-guy   db 2    ; ascii code for character  
-x     db 20   ; x position of character
-y     db 11   ; y position of character 
 
-xd    db 0    ; x delta
-yd    db 1    ; y delta
